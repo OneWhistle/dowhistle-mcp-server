@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  mcp-server:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - EXPRESS_API_BASE_URL=http://express-api:3000/api
+      - LOG_LEVEL=INFO
+    volumes:
+      - .:/app
+    command: python main.py
