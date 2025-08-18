@@ -14,8 +14,7 @@ class Settings(BaseSettings):
     
     # Authentication
     API_KEY: Optional[str] = Field(default=None)
-    JWT_SECRET: Optional[str] = Field(default=None)
-    
+        
     # Logging
     LOG_LEVEL: str = Field(default="INFO")
     
