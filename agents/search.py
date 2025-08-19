@@ -3,6 +3,7 @@ from typing import Optional, Dict, Any
 import structlog
 from utils.http_client import api_client
 from models.search_model import Provider, SearchNearMeResponse
+from utils.helper import compute_feedback_rating
 
 logger = structlog.get_logger()
 
@@ -17,8 +18,8 @@ class SearchAgent:
         async def search(
             latitude: float,
             longitude: float,
-            radius: float = 2.0,
-            keyword: Optional[str] = None,
+            radius: int = 10,
+            keyword: str = None,
             category: Optional[str] = None,
             limit: int = 100,
         ) -> Dict[str, Any]:
@@ -28,8 +29,8 @@ class SearchAgent:
             Args:
                 latitude: The latitude coordinate of the search location
                 longitude: The longitude coordinate of the search location
-                radius: Search radius in kilometers (default: 2.0)
-                keyword: Optional keyword to search for (e.g., "mechanic", "restaurant")
+                radius: Search radius in kilometers (default: 10)
+                keyword: Keyword to search for (e.g., "mechanic", "restaurant")
                 category: Optional category filter (e.g., "revamp", "service", "business")
                 limit: Maximum number of results to return (default: 100)
             
@@ -38,7 +39,7 @@ class SearchAgent:
             """
             try:
                 payload = {
-                    "category": category,
+                    "category": category or "revamp",
                     "keyword": keyword or "",
                     "limit": limit,
                     "location": [longitude, latitude],
@@ -78,8 +79,9 @@ class SearchAgent:
                         provider = Provider(
                             id=item.get("_id", ""),
                             name=item.get("name", ""),
+                            phone=f"{item.get("countryCode", "")} {item.get("phone", "")}",
                             address=item.get("location", {}).get("address", ""),
-                            distance=provider_data.get("dis", 0.0),
+                            distance=round(item.get("dis", 0.0), 1),
                             latitude=(
                                 item.get("location", {}).get("coordinates", [0, 0])[1]
                                 if item.get("location", {}).get("coordinates")
@@ -91,18 +93,19 @@ class SearchAgent:
                                 else 0.0
                             ),
                             category=category,
-                            rating=provider_data.get("score"),
+                            rating=compute_feedback_rating(item),
                         )
                     else:  # direct provider format
                         provider = Provider(
                             id=provider_data.get("id", str(provider_data.get("_id", ""))),
                             name=provider_data.get("name", provider_data.get("title", "")),
+                            phone=f"{provider_data.get("countryCode", "")} {provider_data.get("phone", "")}",
                             address=provider_data.get("address", provider_data.get("location", "")),
-                            distance=provider_data.get("distance", 0.0),
+                            distance=round(provider_data.get("distance", 0.0), 1),  
                             latitude=provider_data.get("latitude", provider_data.get("lat", 0.0)),
                             longitude=provider_data.get("longitude", provider_data.get("lng", 0.0)),
                             category=provider_data.get("category"),
-                            rating=provider_data.get("rating", provider_data.get("score", None)),
+                                rating=compute_feedback_rating(provider_data),
                         )
                     providers.append(provider)
 
