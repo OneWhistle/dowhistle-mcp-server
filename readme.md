@@ -109,3 +109,147 @@ All configuration is managed through environment variables:
 | `MAX_RETRIES` | API request retry count | `3` |
 | `RETRY_DELAY` | Retry delay in seconds | `1.0` |
 | `RATE_LIMIT_PER_MINUTE` | Rate limit per minute | `60` |
+
+---
+
+## MCP Client 
+
+1. **New ENV setup**:
+```bash
+
+python -m venv mcp-venv
+source mcp-venv/bin/activate  # On Windows: mcp-venv\Scripts\activate
+pip install -r requirements-mcp-client.txt
+```
+
+2. **Run the MCP Client**
+```bash
+python mcp_client.py interactive 
+```
+
+3. **Sample NLP Sentences**
+
+     1. Search Tool
+
+            
+
+        ## 🍔 Burger Queries
+
+        **1.**
+
+        ```text
+        Looking for burger restaurants near latitude 10.997170885242573 and longitude 76.96196491003371.
+        ```
+
+        **2.**
+
+        ```text
+        Find burger spots within 30 km of the coordinates (10.997170885242573, 76.96196491003371), limited to 30 results.
+        ```
+
+        **3.**
+
+        ```text
+        Show me up to 30 burger joints around latitude 10.997170885242573 and longitude 76.96196491003371.
+        ```
+
+        **4.**
+
+        ```text
+        Searching for nearby burger places close to 10.997170885242573, 76.96196491003371.
+        ```
+
+        **5.**
+
+        ```text
+        Retrieve burger restaurants near the location (10.997170885242573, 76.96196491003371) within a 30 km radius.
+        ```
+
+        ---
+
+        ## 🔧 Plumber Queries
+
+        **6.**
+
+        ```text
+        Looking for plumber services near latitude 10.997170885242573 and longitude 76.96196491003371.
+        ```
+
+        **7.**
+
+        ```text
+        Find up to 30 plumbers around the coordinates (10.997170885242573, 76.96196491003371), within 30 km.
+        ```
+
+        **8.**
+
+        ```text
+        Show me plumbers available near the point (10.997170885242573, 76.96196491003371).
+        ```
+
+        **9.**
+
+        ```text
+        Retrieve plumber listings close to latitude 10.997170885242573 and longitude 76.96196491003371, restricted to 30 results.
+        ```
+
+        **10.**
+
+        ```text
+        Searching for nearby plumbers within 30 kilometers of 10.997170885242573, 76.96196491003371.
+        ```
+
+        ---
+
+        ## ☕ Coffee Queries
+
+        **11.**
+
+        ```text
+        Looking for coffee shops near latitude 10.997170885242573 and longitude 76.96196491003371.
+        ```
+
+        **12.**
+
+        ```text
+        Find coffee places within 30 km of the location (10.997170885242573, 76.96196491003371), limited to 30 results.
+        ```
+
+        **13.**
+
+        ```text
+        Show me coffee shops around latitude 10.997170885242573 and longitude 76.96196491003371.
+        ```
+
+        **14.**
+
+        ```text
+        Searching for nearby coffee spots close to 10.997170885242573, 76.96196491003371, with a maximum of 30 results.
+        ```
+
+        **15.**
+
+        ```text
+        Retrieve coffee locations near the coordinates (10.997170885242573, 76.96196491003371), restricted to 30 km radius.
+        ```
+
+        ---
+
+
+
+
+        In auth_flow Add one more options along with ask the value one by one, this need to be secoundary, primary user enter the in NLP we need to undersant and extract the args and call the approipate tool with that args
+
+        For example
+        My number is +91 9994076214 and my name is Paramaswari and locations is latitude 10.997170885242573 and longitude 76.96196491003371. [Call SignIn Tool]
+
+        verify my OTP 164318 for this user_id xxxx  [Call Verify Tool]
+
+        Resend OTP for this user_id xxxx [Call Resend OTP Tool]
+
+
+
+
+
+
+
