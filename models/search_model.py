@@ -12,6 +12,7 @@ class SearchNearMeRequest(BaseModel):
 class Provider(BaseModel):
     id: str
     name: str
+    phone:str
     address: str
     distance: float
     latitude: float
