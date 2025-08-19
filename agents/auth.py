@@ -114,7 +114,7 @@ class AuthAgent:
                 if not otp_code.isdigit():
                     raise ValueError("otp_code must contain only digits.")
 
-                payload = {"user_id": user_id, "otp": otp_code}
+                payload = {"id": user_id, "otp": otp_code}
                 result = await api_client.request(
                     method="POST",
                     endpoint="/twilio/verify-otp",
@@ -126,7 +126,7 @@ class AuthAgent:
 
             except Exception as e:
                 logger.error("OTP verification failed", error=str(e), user_id=user_id)
-                return {"success": False, "error": str(e)}
+                return {"success": False, "error": str(e), "payload": locals().get("payload")}
 
         # -------------------------
         # Resend OTP Tool
@@ -147,7 +147,7 @@ class AuthAgent:
                 if user_id.isdigit() or user_id.startswith("+"):
                     raise ValueError("user_id looks like a phone number. Please provide valid user_id from sign_in.")
 
-                payload = {"user_id": user_id}
+                payload = {"userid": user_id}
                 await api_client.request(
                     method="POST",
                     endpoint="/twilio/resend-otp",
@@ -159,4 +159,4 @@ class AuthAgent:
 
             except Exception as e:
                 logger.error("OTP resend failed", error=str(e), user_id=user_id)
-                return {"success": False, "error": str(e)}
+                return {"success": False, "error": str(e), "payload": locals().get("payload")}
