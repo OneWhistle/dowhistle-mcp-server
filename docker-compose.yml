@@ -4,10 +4,22 @@ services:
   mcp-server:
     build: .
     ports:
-      - "8000:8000"
+      - "8080:8080"
+      - "8081:8081"
     environment:
-      - EXPRESS_API_BASE_URL=http://express-api:3000/api
+      - MCP_SERVER_PORT=8080
+      - HEALTH_PORT=8081
+      - EXPRESS_API_BASE_URL=${EXPRESS_API_BASE_URL}
       - LOG_LEVEL=INFO
-    volumes:
-      - .:/app
-    command: python main.py
+      - RATE_LIMIT_PER_MINUTE=60
+      - MAX_RETRIES=3
+      - RETRY_DELAY=1.0
+      - ENVIRONMENT=production
+    
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
