@@ -79,7 +79,8 @@ class SearchAgent:
                         provider = Provider(
                             id=item.get("_id", ""),
                             name=item.get("name", ""),
-                            phone=f"{item.get("countryCode", "")} {item.get("phone", "")}",
+                            phone=f"{item.get('countryCode', '')} {item.get('phone', '')}",
+
                             address=item.get("location", {}).get("address", ""),
                             distance=round(item.get("dis", 0.0), 1),
                             latitude=(
@@ -99,7 +100,7 @@ class SearchAgent:
                         provider = Provider(
                             id=provider_data.get("id", str(provider_data.get("_id", ""))),
                             name=provider_data.get("name", provider_data.get("title", "")),
-                            phone=f"{provider_data.get("countryCode", "")} {provider_data.get("phone", "")}",
+                            phone=f"{provider_data.get('countryCode', '')} {provider_data.get('phone', '')}",
                             address=provider_data.get("address", provider_data.get("location", "")),
                             distance=round(provider_data.get("distance", 0.0), 1),  
                             latitude=provider_data.get("latitude", provider_data.get("lat", 0.0)),
