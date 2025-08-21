@@ -89,7 +89,10 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 
 1. **Build and run**:
 ```bash
-docker-compose up --build
+docker compose up -d --build 
+(or)
+
+docker-compose up --build 
 ```
 
 2. **Production deployment**:
