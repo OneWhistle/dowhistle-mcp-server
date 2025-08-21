@@ -15,7 +15,7 @@ class SearchAgent:
 
     def register_tools(self):
         @self.mcp.tool()
-        async def search(
+        async def search_businesses(
             latitude: float,
             longitude: float,
             radius: int = 10,
