@@ -1,6 +1,7 @@
 import asyncio
 import signal
 import sys
+import datetime
 import structlog
 from fastmcp import FastMCP
 from aiohttp import web
@@ -48,16 +49,24 @@ mcp_server_instance = None
 
 
 async def handle_health(request):
-    return web.json_response({"status": "ok", "timestamp": structlog.processors.TimeStamper().now()})
+    import datetime
+    return web.json_response({
+        "status": "ok", 
+        "timestamp": datetime.datetime.now().isoformat()
+    })
 
 
 async def handle_ready(request):
     if ready_event.is_set():
         return web.json_response({
             "status": "ready",
-            "server_info": settings.server_info
+            "server_info": settings.server_info,
+            "timestamp": datetime.datetime.now().isoformat()
         })
-    return web.json_response({"status": "not ready"}, status=503)
+    return web.json_response({
+        "status": "not ready",
+        "timestamp": datetime.datetime.now().isoformat()
+    }, status=503)
 
 
 # ---- MCP JSON-RPC 2.0 Handler ----
@@ -195,22 +204,51 @@ async def start_http_server():
     app.router.add_get("/healthz", handle_health)
     app.router.add_get("/readyz", handle_ready)
     
+    # Debug endpoint to check MCP server status
+    async def handle_debug(request):
+        global mcp_server_instance
+        return web.json_response({
+            "server_initialized": mcp_server_instance is not None,
+            "ready": ready_event.is_set(),
+            "transport_mode": settings.TRANSPORT_MODE,
+            "environment": settings.ENVIRONMENT,
+            "tools_count": len(mcp_server_instance._tools) if mcp_server_instance and hasattr(mcp_server_instance, '_tools') else 0,
+            "timestamp": datetime.datetime.now().isoformat()
+        })
+    
+    app.router.add_get("/debug", handle_debug)
+    
     # MCP JSON-RPC endpoint
     if settings.is_http_transport:
         app.router.add_post("/mcp", handle_mcp_request)
-        app.router.add_options("/mcp", lambda r: web.Response(status=200))  # CORS preflight
+        app.router.add_options("/mcp", lambda r: web.Response(
+            status=200,
+            headers={
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                'Access-Control-Max-Age': '86400'
+            }
+        ))
         logger.info("Added MCP JSON-RPC endpoint at /mcp")
 
     # Add CORS headers for cross-origin requests
     cors_origins = settings.CORS_ORIGINS.split(',') if settings.CORS_ORIGINS != '*' else ['*']
     
+    @web.middleware
     async def add_cors_headers(request, handler):
-        response = await handler(request)
+        # Handle CORS preflight requests
+        if request.method == "OPTIONS":
+            response = web.Response()
+        else:
+            response = await handler(request)
+            
         origin = request.headers.get('Origin')
         if settings.CORS_ORIGINS == '*' or (origin and origin in cors_origins):
             response.headers['Access-Control-Allow-Origin'] = origin or '*'
         response.headers['Access-Control-Allow-Methods'] = settings.CORS_METHODS
         response.headers['Access-Control-Allow-Headers'] = settings.CORS_HEADERS
+        response.headers['Access-Control-Max-Age'] = '86400'  # Cache preflight for 24 hours
         return response
 
     app.middlewares.append(add_cors_headers)
