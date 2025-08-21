@@ -63,12 +63,12 @@ RUN mkdir -p /app/logs /app/data && \
 # Switch to non-root user
 USER mcpuser
 
-# Production health check using liveness probe with proper timing
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8000/health/live || exit 1
+# Health check with better endpoint and configuration
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # Expose port
 EXPOSE 8000
 
-# Use the virtual environment's uvicorn directly with proper startup configuration
-CMD ["/app/.venv/bin/uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--timeout-keep-alive", "30"]
+# Use the virtual environment's uvicorn directly
+CMD ["/app/.venv/bin/uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
