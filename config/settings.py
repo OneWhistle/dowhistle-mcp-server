@@ -1,6 +1,6 @@
 import os
 from typing import Optional, Literal
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -40,25 +40,29 @@ class Settings(BaseSettings):
     CORS_METHODS: str = Field(default="GET,POST,OPTIONS")
     CORS_HEADERS: str = Field(default="Content-Type,Authorization")
     
-    @validator('TRANSPORT_MODE', pre=True, always=True)
-    def set_transport_mode(cls, v, values):
+    @field_validator('TRANSPORT_MODE', mode='before')
+    @classmethod
+    def set_transport_mode(cls, v, info):
         """Auto-determine transport mode based on environment if not explicitly set"""
         if v is not None:
             return v.lower()
         
-        environment = values.get('ENVIRONMENT', 'development')
+        # Get environment from the data being validated
+        environment = info.data.get('ENVIRONMENT', 'development')
         if environment == 'production':
             return 'http'
         else:
             return 'stdio'
     
-    @validator('LOG_LEVEL', pre=True, always=True)
-    def set_log_level(cls, v, values):
+    @field_validator('LOG_LEVEL', mode='before')
+    @classmethod
+    def set_log_level(cls, v, info):
         """Auto-adjust log level based on environment if not explicitly set"""
         if v != "INFO":  # If explicitly set, keep it
             return v.upper()
         
-        environment = values.get('ENVIRONMENT', 'development')
+        # Get environment from the data being validated
+        environment = info.data.get('ENVIRONMENT', 'development')
         if environment == 'production':
             return 'INFO'
         elif environment == 'staging':
@@ -66,8 +70,9 @@ class Settings(BaseSettings):
         else:
             return 'DEBUG'
     
-    @validator('HEALTH_PORT', pre=True, always=True)
-    def handle_render_port(cls, v, values):
+    @field_validator('HEALTH_PORT', mode='before')
+    @classmethod
+    def handle_render_port(cls, v, info):
         """Handle Render.com PORT environment variable"""
         # Render.com uses PORT env var, prioritize it for health checks
         render_port = os.getenv('PORT')
