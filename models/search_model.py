@@ -5,9 +5,9 @@ from typing import List, Optional, Dict, Any
 class SearchNearMeRequest(BaseModel):
     latitude: float
     longitude: float
-    radius: Optional[float] = 2.0  # Default radius of 2km
+    radius: Optional[float] = 10.0  # Default radius of 2km
     keyword: Optional[str] = None
-    category: Optional[str] = None
+    # category: Optional[str] = None
     limit: Optional[int] = 100
 
 
@@ -19,7 +19,7 @@ class Provider(BaseModel):
     distance: float
     latitude: float
     longitude: float
-    category: Optional[str] = None
+    # category: Optional[str] = None
     rating: Optional[float] = None
 
 

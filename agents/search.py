@@ -36,13 +36,6 @@ class SearchAgent:
                     default="",
                 ),
             ],
-            category: Annotated[
-                Optional[str],
-                Field(
-                    description="Optional category filter (e.g., 'revamp', 'service', 'business')",
-                    default=None,
-                ),
-            ],
             limit: Annotated[
                 int,
                 Field(
@@ -61,16 +54,17 @@ class SearchAgent:
                 longitude: The longitude coordinate of the search location
                 radius: Search radius in kilometers (default: 10)
                 keyword: Keyword to search for (e.g., "mechanic", "restaurant")
-                category: Optional category filter (e.g., "revamp", "service", "business")
                 limit: Maximum number of results to return (default: 10)
 
             Returns:
                 A dictionary containing providers found near the location
             """
             try:
+                # Ensure the keyword is a single value
+                keyword = self._sanitize_keyword(keyword)
+
                 payload = {
-                    "category": category or "revamp",
-                    "keyword": keyword or "",
+                    "keyword": keyword or "",  # Default to empty string if keyword is empty
                     "limit": limit,
                     "location": [longitude, latitude],
                     "provider": True,
@@ -90,7 +84,7 @@ class SearchAgent:
                     results_count=len(result.get("results", [])),
                 )
 
-                providers = self._normalize_providers(result, category)
+                providers = self._normalize_providers(result)
 
                 response = SearchNearMeResponse(
                     providers=providers,
@@ -123,15 +117,13 @@ class SearchAgent:
                 resp["error"] = f"Unexpected error: {str(e)}"
                 return resp
 
-    def _normalize_providers(self, result, category):
+    def _normalize_providers(self, result):
         providers = []
         data = result
         providers_data = self._extract_providers_data(data)
         for provider_data in providers_data:
             if "item" in provider_data:  # matchingWhistles format
-                provider = self._normalize_matching_whistle(
-                    provider_data["item"], category
-                )
+                provider = self._normalize_matching_whistle(provider_data["item"])
             else:  # direct provider format
                 provider = self._normalize_direct_provider(provider_data)
             providers.append(provider)
@@ -148,24 +140,15 @@ class SearchAgent:
             providers_data = []
         return providers_data
 
-    def _normalize_matching_whistle(self, item, category):
+    def _normalize_matching_whistle(self, item):
         return Provider(
             id=item.get("_id", ""),
             name=item.get("name", ""),
             phone=f"{item.get('countryCode', '')} {item.get('phone', '')}",
             address=item.get("location", {}).get("address", ""),
             distance=round(item.get("dis", 0.0), 1),
-            latitude=(
-                item.get("location", {}).get("coordinates", [0, 0])[1]
-                if item.get("location", {}).get("coordinates")
-                else 0.0
-            ),
-            longitude=(
-                item.get("location", {}).get("coordinates", [0, 0])[0]
-                if item.get("location", {}).get("coordinates")
-                else 0.0
-            ),
-            category=category,
+            latitude=(item.get("location", {}).get("coordinates", [0, 0])[1] if item.get("location", {}).get("coordinates") else 0.0),
+            longitude=(item.get("location", {}).get("coordinates", [0, 0])[0] if item.get("location", {}).get("coordinates") else 0.0),
             rating=compute_feedback_rating(item),
         )
 
@@ -178,6 +161,13 @@ class SearchAgent:
             distance=round(provider_data.get("distance", 0.0), 1),
             latitude=provider_data.get("latitude", provider_data.get("lat", 0.0)),
             longitude=provider_data.get("longitude", provider_data.get("lng", 0.0)),
-            category=provider_data.get("category"),
             rating=compute_feedback_rating(provider_data),
         )
+
+    def _sanitize_keyword(self, keyword: str) -> str:
+        """Sanitize and ensure the keyword is a single value"""
+        if "|" in keyword:
+            logger.warning("Multiple keywords detected, only the first one will be used.")
+            # Split and take the first value, ensuring it's a single clean value
+            keyword = keyword.split("|")[0].strip()
+        return keyword
