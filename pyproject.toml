@@ -1,9 +1,13 @@
 [project]
 name = "dowhistle-mcp-server"
 version = "0.1.0"
-description = "Add your description here"
+description = "MCP Server with Agent Capabilities"
 readme = "README.md"
 requires-python = ">=3.13"
+keywords = ["mcp", "server", "agents", "api","fastmcp","dowhistle"]
+authors = [
+    { name = "Nishanth M", email = "developernishanth2000@gmail.com" }
+]
 dependencies = [
     "fastmcp>=2.11.3",
     "uvicorn[standard]>=0.35.0",
