@@ -3,7 +3,9 @@ import signal
 import sys
 import structlog
 from fastmcp import FastMCP
-from aiohttp import web  # lightweight async web server
+from aiohttp import web
+import json
+from typing import Dict, Any
 
 from agents.search import SearchAgent
 from agents.auth import AuthAgent
@@ -42,65 +44,238 @@ def create_mcp_server() -> FastMCP:
 
 # ---- Health & readiness ----
 ready_event = asyncio.Event()
+mcp_server_instance = None
 
 
 async def handle_health(request):
-    return web.json_response({"status": "ok"})
+    return web.json_response({"status": "ok", "timestamp": structlog.processors.TimeStamper().now()})
 
 
 async def handle_ready(request):
     if ready_event.is_set():
-        return web.json_response({"status": "ready"})
+        return web.json_response({
+            "status": "ready",
+            "server_info": settings.server_info
+        })
     return web.json_response({"status": "not ready"}, status=503)
 
 
+# ---- MCP JSON-RPC 2.0 Handler ----
+async def handle_mcp_request(request):
+    """Handle MCP JSON-RPC 2.0 requests"""
+    try:
+        global mcp_server_instance
+        if not mcp_server_instance:
+            return web.json_response({
+                "jsonrpc": "2.0",
+                "error": {"code": -32603, "message": "MCP server not initialized"},
+                "id": None
+            }, status=500)
+
+        data = await request.json()
+        logger.info("Received MCP request", method=data.get("method"), id=data.get("id"))
+        
+        method = data.get("method")
+        params = data.get("params", {})
+        request_id = data.get("id")
+
+        # Handle MCP protocol methods
+        if method == "initialize":
+            response = {
+                "jsonrpc": "2.0",
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {
+                        "tools": {},
+                        "resources": {},
+                        "prompts": {},
+                    },
+                    "serverInfo": {
+                        "name": "Whistle MCP Server",
+                        "version": "1.0.0"
+                    }
+                },
+                "id": request_id
+            }
+            return web.json_response(response)
+            
+        elif method == "notifications/initialized":
+            # This is a notification, no response needed
+            logger.info("MCP client initialized")
+            return web.Response(status=204)
+            
+        elif method == "tools/list":
+            # Get available tools from MCP server
+            tools = []
+            if hasattr(mcp_server_instance, '_tools'):
+                for tool_name, tool_info in mcp_server_instance._tools.items():
+                    tools.append({
+                        "name": tool_name,
+                        "description": getattr(tool_info, 'description', ''),
+                        "inputSchema": getattr(tool_info, 'input_schema', {})
+                    })
+            
+            response = {
+                "jsonrpc": "2.0",
+                "result": {"tools": tools},
+                "id": request_id
+            }
+            return web.json_response(response)
+            
+        elif method == "tools/call":
+            tool_name = params.get("name")
+            arguments = params.get("arguments", {})
+            
+            logger.info("Calling tool", tool=tool_name, arguments=arguments)
+            
+            try:
+                # Call the tool through FastMCP
+                if hasattr(mcp_server_instance, '_tools') and tool_name in mcp_server_instance._tools:
+                    tool = mcp_server_instance._tools[tool_name]
+                    if hasattr(tool, 'func'):
+                        # Call the tool function
+                        result = await tool.func(**arguments)
+                        
+                        response = {
+                            "jsonrpc": "2.0",
+                            "result": {
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": json.dumps(result) if isinstance(result, dict) else str(result)
+                                    }
+                                ]
+                            },
+                            "id": request_id
+                        }
+                        return web.json_response(response)
+                    else:
+                        raise ValueError(f"Tool {tool_name} has no callable function")
+                else:
+                    raise ValueError(f"Tool {tool_name} not found")
+                    
+            except Exception as e:
+                logger.error("Tool call failed", tool=tool_name, error=str(e))
+                response = {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32603,
+                        "message": f"Tool call failed: {str(e)}"
+                    },
+                    "id": request_id
+                }
+                return web.json_response(response, status=500)
+        
+        else:
+            # Unknown method
+            response = {
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -32601,
+                    "message": f"Method not found: {method}"
+                },
+                "id": request_id
+            }
+            return web.json_response(response, status=404)
+            
+    except Exception as e:
+        logger.error("MCP request handling failed", error=str(e))
+        return web.json_response({
+            "jsonrpc": "2.0",
+            "error": {"code": -32603, "message": f"Internal error: {str(e)}"},
+            "id": data.get("id") if 'data' in locals() else None
+        }, status=500)
+
+
 async def start_http_server():
-    """Start aiohttp server for health/readiness probes"""
+    """Start aiohttp server for health/readiness probes and MCP HTTP endpoints"""
     app = web.Application()
+    
+    # Health endpoints
     app.router.add_get("/healthz", handle_health)
     app.router.add_get("/readyz", handle_ready)
+    
+    # MCP JSON-RPC endpoint
+    if settings.is_http_transport:
+        app.router.add_post("/mcp", handle_mcp_request)
+        app.router.add_options("/mcp", lambda r: web.Response(status=200))  # CORS preflight
+        logger.info("Added MCP JSON-RPC endpoint at /mcp")
+
+    # Add CORS headers for cross-origin requests
+    cors_origins = settings.CORS_ORIGINS.split(',') if settings.CORS_ORIGINS != '*' else ['*']
+    
+    async def add_cors_headers(request, handler):
+        response = await handler(request)
+        origin = request.headers.get('Origin')
+        if settings.CORS_ORIGINS == '*' or (origin and origin in cors_origins):
+            response.headers['Access-Control-Allow-Origin'] = origin or '*'
+        response.headers['Access-Control-Allow-Methods'] = settings.CORS_METHODS
+        response.headers['Access-Control-Allow-Headers'] = settings.CORS_HEADERS
+        return response
+
+    app.middlewares.append(add_cors_headers)
 
     runner = web.AppRunner(app)
     await runner.setup()
+    
+    # Use settings for port configuration
     site = web.TCPSite(runner, "0.0.0.0", settings.HEALTH_PORT)
     await site.start()
 
-    logger.info("Health/readiness server started", port=settings.HEALTH_PORT)
+    logger.info(
+        "HTTP server started", 
+        port=settings.HEALTH_PORT, 
+        transport_mode=settings.TRANSPORT_MODE,
+        environment=settings.ENVIRONMENT
+    )
     return runner
 
 
 async def stop_http_server(runner: web.AppRunner):
-    logger.info("Stopping health/readiness server...")
+    logger.info("Stopping HTTP server...")
     await runner.cleanup()
 
-async def run_mcp_with_ready(mcp: FastMCP):
+
+async def run_mcp_stdio(mcp: FastMCP):
+    """Run MCP server with stdio transport (development)"""
     ready_event.set()
-    logger.info("MCP server marked as ready")
-    await mcp.run_async(transport="stdio")    
+    logger.info("MCP server marked as ready (stdio transport)")
+    await mcp.run_async(transport="stdio")
+
+
+async def run_mcp_http(mcp: FastMCP):
+    """Run MCP server with HTTP transport (production)"""
+    global mcp_server_instance
+    mcp_server_instance = mcp
+    ready_event.set()
+    logger.info("MCP server marked as ready (HTTP transport)")
+    
+    # For HTTP transport, the server logic is handled by the HTTP endpoints
+    # Keep this task running to maintain the server state
+    stop_event = asyncio.Event()
+    await stop_event.wait()
+
+
+def get_transport_mode():
+    """Get transport mode from settings"""
+    return settings.TRANSPORT_MODE
 
 
 # ---- Main entry point ----
 async def main():
-    logger.info(
-        "Starting MCP server",
-        port=settings.MCP_SERVER_PORT,
-        api_base_url=settings.EXPRESS_API_BASE_URL
-    )
+    logger.info("Starting MCP server with configuration", **settings.server_info)
 
     mcp = create_mcp_server()
 
-    # Start MCP server as background task
-    server_task = asyncio.create_task(run_mcp_with_ready(mcp))
+    # Start MCP server based on transport mode
+    if settings.is_http_transport:
+        logger.info("Using HTTP transport for production")
+        server_task = asyncio.create_task(run_mcp_http(mcp))
+    else:
+        logger.info("Using stdio transport for development")
+        server_task = asyncio.create_task(run_mcp_stdio(mcp))
 
-    # Mark as ready once MCP is initialized
-    async def mark_ready():
-        await asyncio.sleep(1)  # adjust if MCP init takes longer
-        ready_event.set()
-        logger.info("MCP server marked as ready")
-
-    asyncio.create_task(mark_ready())
-
-    # Start health server
+    # Always start HTTP server for health checks (and MCP endpoints in production)
     http_runner = await start_http_server()
 
     # Setup signal handling
@@ -121,7 +296,10 @@ async def main():
             loop.add_signal_handler(sig, lambda s=sig: handle_shutdown(s))
 
     # Wait for shutdown
-    await stop_event.wait()
+    try:
+        await stop_event.wait()
+    except KeyboardInterrupt:
+        logger.info("Received keyboard interrupt")
 
     # Shutdown sequence
     logger.info("Stopping MCP server...")
@@ -132,7 +310,14 @@ async def main():
         logger.info("MCP server shut down cleanly")
 
     await stop_http_server(http_runner)
+    logger.info("Server shutdown complete")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Server interrupted")
+    except Exception as e:
+        logger.error("Server failed to start", error=str(e))
+        sys.exit(1)
