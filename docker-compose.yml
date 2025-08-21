@@ -2,7 +2,11 @@ version: '3.8'
 
 services:
     mcp-server:
-        build: .
+        build:
+            context: .
+            dockerfile: Dockerfile
+            target: production
+        container_name: dowhistle-mcp-server
         ports:
             - '8000:8000'
         environment:
@@ -17,6 +21,9 @@ services:
             - CONNECTION_TIMEOUT=30
             - REQUEST_TIMEOUT=30
         restart: unless-stopped
+        volumes:
+            - ./logs:/app/logs
+            - ./data:/app/data
         healthcheck:
             test: ['CMD', 'curl', '-f', 'http://localhost:8000/health']
             interval: 30s
