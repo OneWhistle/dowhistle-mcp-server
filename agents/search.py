@@ -64,7 +64,8 @@ class SearchAgent:
                 keyword = self._sanitize_keyword(keyword)
 
                 payload = {
-                    "keyword": keyword or "",  # Default to empty string if keyword is empty
+                    "keyword": keyword
+                    or "",  # Default to empty string if keyword is empty
                     "limit": limit,
                     "location": [longitude, latitude],
                     "provider": True,
@@ -147,8 +148,16 @@ class SearchAgent:
             phone=f"{item.get('countryCode', '')} {item.get('phone', '')}",
             address=item.get("location", {}).get("address", ""),
             distance=round(item.get("dis", 0.0), 1),
-            latitude=(item.get("location", {}).get("coordinates", [0, 0])[1] if item.get("location", {}).get("coordinates") else 0.0),
-            longitude=(item.get("location", {}).get("coordinates", [0, 0])[0] if item.get("location", {}).get("coordinates") else 0.0),
+            latitude=(
+                item.get("location", {}).get("coordinates", [0, 0])[1]
+                if item.get("location", {}).get("coordinates")
+                else 0.0
+            ),
+            longitude=(
+                item.get("location", {}).get("coordinates", [0, 0])[0]
+                if item.get("location", {}).get("coordinates")
+                else 0.0
+            ),
             rating=compute_feedback_rating(item),
         )
 
@@ -167,7 +176,9 @@ class SearchAgent:
     def _sanitize_keyword(self, keyword: str) -> str:
         """Sanitize and ensure the keyword is a single value"""
         if "|" in keyword:
-            logger.warning("Multiple keywords detected, only the first one will be used.")
+            logger.warning(
+                "Multiple keywords detected, only the first one will be used."
+            )
             # Split and take the first value, ensuring it's a single clean value
             keyword = keyword.split("|")[0].strip()
         return keyword
