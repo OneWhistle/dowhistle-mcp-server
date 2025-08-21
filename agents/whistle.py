@@ -13,306 +13,273 @@ class WhistleAgent:
     def register_tools(self):
         @self.mcp.tool()
         async def create_whistle(
-            title: str,
             description: str,
-            location: List[float],  # [longitude, latitude] to match backend format
-            category: str,
-            sub_category: Optional[str] = None,
-            keyword: Optional[str] = None,
-            priority: Optional[str] = "medium",
-            is_anonymous: Optional[bool] = False,
-            provider: Optional[bool] = False,
-            active: Optional[bool] = True,
-            visible: Optional[bool] = True,
-            tags: Optional[List[str]] = None,
             alert_radius: Optional[float] = 2.0,
-            limit: Optional[int] = 50,
-            radius: Optional[float] = None,
-            referral_code: Optional[str] = None
+            tags: Optional[List[str]] = None,
+            provider: Optional[bool] = False,
+            expiry: Optional[str] = "never"
         ) -> Dict[str, Any]:
             """
-            Create a new whistle report
+            Create a new whistle (service request) for the authenticated user.
             
             Args:
-                title: Whistle title
-                description: Detailed description of the whistle
-                location: Location as [longitude, latitude] array
-                category: Main category of the whistle
-                sub_category: Optional subcategory
-                keyword: Optional keyword for better searchability
-                priority: Priority level (low, medium, high)
-                is_anonymous: Whether to create anonymously
-                provider: Whether this is a provider whistle
-                active: Whether the whistle is active
-                visible: Whether the whistle is visible to others
-                tags: Optional list of tags (max 20)
-                alert_radius: Radius for matching alerts in km
-                limit: Limit for matching whistles returned
-                radius: Search radius for matching
-                referral_code: Optional referral code
+                description: A detailed description of the service/need
+                alert_radius: Alert radius in kilometers (default: 2.0)
+                tags: List of relevant tags for the whistle
+                provider: True if offering a service, False if seeking (default: False)
+                expiry: Expiry setting - "never" or date string (default: "never")
+            
+            Returns:
+                Dictionary with success status, whistle data, and message
             """
             try:
-                # Construct whistle object following backend format
+                # Prepare whistle data following the whistletools.py pattern
                 whistle_data = {
-                    "title": title,
                     "description": description,
-                    "location": {
-                        "type": "Point",
-                        "coordinates": location  # [longitude, latitude]
-                    },
-                    "category": category,
-                    "priority": priority,
+                    "alertRadius": alert_radius,
+                    "tags": tags or [],
                     "provider": provider,
-                    "active": active,
-                    "visible": visible,
-                    "alertRadius": alert_radius
+                    "expiry": expiry
                 }
                 
-                # Add optional fields if provided
-                if sub_category:
-                    whistle_data["subCategory"] = sub_category
-                if keyword:
-                    whistle_data["keyword"] = keyword
-                if tags:
-                    if len(tags) > 20:
-                        return {
-                            "success": False,
-                            "error": "Please specify only up to 20 tags"
-                        }
-                    whistle_data["tags"] = tags
-                
-                # Construct payload following backend API format
-                payload = {
-                    "whistle": whistle_data,
-                    "limit": limit
-                }
-                
-                # Add optional payload fields
-                if radius:
-                    payload["radius"] = radius
-                if referral_code:
-                    payload["referralCode"] = referral_code
+                # Validate tags limit (max 20 as per backend validation)
+                if len(whistle_data["tags"]) > 20:
+                    return {
+                        "status": "error",
+                        "message": "Please specify only up to 20 tags"
+                    }
                 
                 # Make API request to create whistle
                 result = await api_client.request(
                     method="POST",
-                    endpoint="/whistle",  # Backend uses /whistle endpoint
-                    data=payload
+                    endpoint="/whistle",
+                    data={"whistle": whistle_data}
                 )
+                
+                # Extract the created whistle from response
+                new_whistle = result.get("newWhistle")
+                if not new_whistle:
+                    return {
+                        "status": "error",
+                        "message": "Whistle creation failed - no whistle returned"
+                    }
+                
+                # Format response following whistletools.py pattern
+                formatted_whistle = {
+                    "id": new_whistle.get("_id") or new_whistle.get("id"),
+                    "description": new_whistle.get("description", ""),
+                    "tags": new_whistle.get("tags", []),
+                    "alertRadius": new_whistle.get("alertRadius", 2),
+                    "expiry": new_whistle.get("expiry", "never"),
+                    "provider": new_whistle.get("provider", False),
+                    "active": new_whistle.get("active", True),
+                }
                 
                 logger.info(
                     "Whistle created successfully", 
-                    whistle_id=result.get("newWhistle", {}).get("_id"),
-                    title=title,
-                    category=category
+                    whistle_id=formatted_whistle["id"],
+                    description=description,
+                    provider=provider
                 )
                 
-                # Format response to match expected structure
-                response = {
-                    "success": True,
-                    "data": {
-                        "whistle": result.get("newWhistle"),
-                        "matching_whistles": result.get("matchingWhistles", []),
-                        "total_matches": len(result.get("matchingWhistles", [])),
-                    }
+                return {
+                    "status": "success",
+                    "whistle": formatted_whistle,
+                    "message": "Whistle created successfully",
+                    "matching_whistles": result.get("matchingWhistles", [])
                 }
-                
-                # Include reward info if present
-                if "reward" in result:
-                    response["data"]["reward"] = result["reward"]
-                
-                # Include certification info if present
-                if "certified" in result:
-                    response["data"]["certified"] = result["certified"]
-                
-                return response
                 
             except Exception as e:
                 error_msg = str(e)
-                logger.error("Whistle creation failed", error=error_msg, title=title)
+                logger.error("Whistle creation failed", error=error_msg, description=description)
                 
-                # Handle specific error cases based on backend patterns
+                # Handle specific error cases
                 if "ETLIMIT" in error_msg:
                     return {
-                        "success": False,
-                        "error": "Please specify only up to 20 tags"
-                    }
-                elif "No data sent" in error_msg:
-                    return {
-                        "success": False,
-                        "error": "No whistle data provided. Please provide whistle details"
+                        "status": "error",
+                        "message": "Please specify only up to 20 tags"
                     }
                 elif "referral" in error_msg.lower():
                     return {
-                        "success": False,
-                        "error": error_msg
+                        "status": "error", 
+                        "message": error_msg
                     }
                 else:
                     return {
-                        "success": False,
-                        "error": f"Error creating whistle: {error_msg}"
+                        "status": "error",
+                        "message": f"Error creating whistle: {error_msg}"
                     }
         
         @self.mcp.tool()
         async def update_whistle(
             whistle_id: str,
-            comment: Optional[str] = None,
             description: Optional[str] = None,
-            images: Optional[List[str]] = None,
-            tags: Optional[List[str]] = None,
-            active: Optional[bool] = None,
-            expiry: Optional[str] = None,
-            public: Optional[bool] = None,
             alert_radius: Optional[float] = None,
+            tags: Optional[List[str]] = None,
+            provider: Optional[bool] = None,
+            expiry: Optional[str] = None,
+            active: Optional[bool] = None,
+            public: Optional[bool] = None,
+            comment: Optional[str] = None,
+            images: Optional[List[str]] = None,
             location: Optional[List[float]] = None,
             category: Optional[str] = None,
-            sub_category: Optional[str] = None,
-            updates: Optional[Dict[str, Any]] = None
+            sub_category: Optional[str] = None
         ) -> Dict[str, Any]:
             """
-            Update an existing whistle
+            Update an existing whistle for the authenticated user.
             
             Args:
                 whistle_id: ID of the whistle to update
-                comment: Comment or additional notes
                 description: Updated description
-                images: List of image URLs
-                tags: List of tags (max 20)
+                alert_radius: Updated alert radius in kilometers
+                tags: Updated list of tags (max 20)
+                provider: Updated provider status
+                expiry: Updated expiry setting
                 active: Whether the whistle is active
-                expiry: Expiry setting ('never' or date string)
                 public: Whether the whistle is public
-                alert_radius: Alert radius in kilometers
+                comment: Additional comment
+                images: List of image URLs
                 location: Updated location as [longitude, latitude]
                 category: Updated category
                 sub_category: Updated subcategory
-                updates: Additional updates dictionary (for other fields)
+            
+            Returns:
+                Dictionary with success status, updated whistle data, and message
             """
             try:
-                # Build update payload with only provided fields
+                # Build update data with only provided fields (following whistletools.py pattern)
                 update_data = {}
+                updatable_fields = {
+                    "description": description,
+                    "alertRadius": alert_radius, 
+                    "tags": tags,
+                    "provider": provider,
+                    "expiry": expiry,
+                    "active": active,
+                    "public": public,
+                    "comment": comment,
+                    "images": images,
+                    "category": category,
+                    "subCategory": sub_category
+                }
                 
-                # Add individual parameters if provided
-                if comment is not None:
-                    update_data["comment"] = comment
-                if description is not None:
-                    update_data["description"] = description
-                if images is not None:
-                    update_data["images"] = images
-                if tags is not None:
-                    if len(tags) > 20:
-                        return {
-                            "success": False,
-                            "error": "Please specify only up to 20 tags"
-                        }
-                    update_data["tags"] = tags
-                if active is not None:
-                    update_data["active"] = active
-                if expiry is not None:
-                    update_data["expiry"] = expiry
-                if public is not None:
-                    update_data["public"] = public
-                if alert_radius is not None:
-                    update_data["alertRadius"] = alert_radius
+                # Only include fields that are not None
+                for field, value in updatable_fields.items():
+                    if value is not None:
+                        update_data[field] = value
+                
+                # Handle location format conversion
                 if location is not None:
-                    # Convert to proper location format if needed
                     if isinstance(location, list) and len(location) == 2:
                         update_data["location"] = {
-                            "type": "Point",
-                            "coordinates": location  # [longitude, latitude]
+                            "type": "Point", 
+                            "coordinates": location
                         }
                     else:
                         update_data["location"] = location
-                if category is not None:
-                    update_data["category"] = category
-                if sub_category is not None:
-                    update_data["subCategory"] = sub_category
                 
-                # Merge with additional updates if provided
-                if updates:
-                    # Only allow whitelisted fields for security
-                    allowed_fields = [
-                        'comment', 'description', 'images', 'tags', 'active',
-                        'expiry', 'public', 'alertRadius', 'location', 
-                        'category', 'subCategory'
-                    ]
-                    for key, value in updates.items():
-                        if key in allowed_fields:
-                            update_data[key] = value
+                # Validate tags limit
+                if tags is not None and len(tags) > 20:
+                    return {
+                        "status": "error",
+                        "message": "Please specify only up to 20 tags"
+                    }
                 
                 if not update_data:
                     return {
-                        "success": False,
-                        "error": "No valid update fields provided"
+                        "status": "error",
+                        "message": "No valid updates were identified from your request."
                     }
                 
                 # Make API request to update whistle
                 result = await api_client.request(
                     method="PUT",
-                    endpoint=f"/whistle/{whistle_id}",  # Backend uses /whistle/{id} format
+                    endpoint=f"/whistle/{whistle_id}",
                     data=update_data
                 )
                 
+                # Extract updated whistle from response
+                updated_whistle = result.get("updatedWhistle")
+                if not updated_whistle:
+                    return {
+                        "status": "error",
+                        "message": "Whistle update failed - no response from server"
+                    }
+                
+                # Format response following whistletools.py pattern
+                formatted_whistle = {
+                    "id": updated_whistle.get("_id") or updated_whistle.get("id"),
+                    "description": updated_whistle.get("description", ""),
+                    "tags": updated_whistle.get("tags", []),
+                    "alertRadius": updated_whistle.get("alertRadius", 2),
+                    "expiry": updated_whistle.get("expiry", "never"),
+                    "provider": updated_whistle.get("provider", False),
+                    "active": updated_whistle.get("active", True),
+                }
+                
                 logger.info(
-                    "Whistle updated successfully", 
+                    "Whistle updated successfully",
                     whistle_id=whistle_id,
                     updated_fields=list(update_data.keys())
                 )
                 
                 return {
-                    "success": True,
-                    "data": {
-                        "updated_whistle": result.get("updatedWhistle"),
-                        "whistle_id": whistle_id,
-                        "updated_fields": list(update_data.keys())
-                    }
+                    "status": "success", 
+                    "whistle": formatted_whistle,
+                    "message": f"Successfully updated whistle: {formatted_whistle.get('description', '')}"
                 }
                 
             except Exception as e:
                 error_msg = str(e)
                 logger.error("Whistle update failed", error=error_msg, whistle_id=whistle_id)
                 
-                # Handle specific error cases based on backend patterns
+                # Handle specific error cases
                 if "ETLIMIT" in error_msg:
                     return {
-                        "success": False,
-                        "error": "Please specify only up to 20 tags"
+                        "status": "error",
+                        "message": "Please specify only up to 20 tags"
                     }
                 elif "not found" in error_msg.lower():
                     return {
-                        "success": False,
-                        "error": f"Whistle not found: {whistle_id}"
+                        "status": "error",
+                        "message": f"Whistle not found: {whistle_id}"
                     }
                 else:
                     return {
-                        "success": False,
-                        "error": f"Error updating whistle: {error_msg}"
+                        "status": "error",
+                        "message": f"Failed to update whistle: {error_msg}"
                     }
         
         @self.mcp.tool()
         async def delete_whistle(whistle_id: str) -> Dict[str, Any]:
             """
-            Delete a whistle by setting it to inactive
+            Delete (deactivate) an existing whistle for the authenticated user.
             
             Args:
                 whistle_id: ID of the whistle to delete
+            
+            Returns:
+                Dictionary with success status and message
             """
             try:
-                # Most apps use soft delete - set active to false instead of hard delete
+                # Use soft delete by setting active to false (following whistletools.py pattern)
                 result = await api_client.request(
                     method="PUT",
                     endpoint=f"/whistle/{whistle_id}",
                     data={"active": False}
                 )
                 
+                # Extract whistle info for response message
+                updated_whistle = result.get("updatedWhistle", {})
+                whistle_description = updated_whistle.get("description", "Unknown")
+                
                 logger.info("Whistle deleted successfully", whistle_id=whistle_id)
                 
                 return {
-                    "success": True,
-                    "message": "Whistle deleted successfully",
-                    "data": {
-                        "whistle_id": whistle_id,
-                        "deleted_at": result.get("lastUpdatedAt")
-                    }
+                    "status": "success",
+                    "message": f"Whistle '{whistle_description}' deleted successfully",
+                    "whistle_id": whistle_id
                 }
                 
             except Exception as e:
@@ -321,192 +288,83 @@ class WhistleAgent:
                 
                 if "not found" in error_msg.lower():
                     return {
-                        "success": False,
-                        "error": f"Whistle not found: {whistle_id}"
+                        "status": "error",
+                        "message": "No matching whistle found to delete"
                     }
                 else:
                     return {
-                        "success": False,
-                        "error": f"Error deleting whistle: {error_msg}"
+                        "status": "error",
+                        "message": f"Error deleting whistle: {error_msg}"
                     }
         
         @self.mcp.tool()
         async def list_whistles(
-            limit: Optional[int] = 10,
-            offset: Optional[int] = 0,
-            category: Optional[str] = None,
-            sub_category: Optional[str] = None,
-            active_only: Optional[bool] = True,
-            provider_only: Optional[bool] = None,
-            public_only: Optional[bool] = None,
-            keyword: Optional[str] = None,
-            location: Optional[List[float]] = None,
-            radius: Optional[float] = None,
-            filters: Optional[Dict[str, Any]] = None
+            active_only: Optional[bool] = False
         ) -> Dict[str, Any]:
             """
-            List user's whistles with pagination and filters
+            Fetch all whistles for the authenticated user.
             
             Args:
-                limit: Number of whistles to return (max 100)
-                offset: Number of whistles to skip for pagination
-                category: Filter by category
-                sub_category: Filter by subcategory
-                active_only: Only return active whistles
-                provider_only: Filter by provider status
-                public_only: Only return public whistles
-                keyword: Search by keyword in title/description
-                location: Center location for radius search [longitude, latitude]
-                radius: Search radius in kilometers (requires location)
-                filters: Additional filters dictionary
+                active_only: If True, only return active whistles
+            
+            Returns:
+                Dictionary with success status and list of whistles
             """
             try:
-                # Build query parameters
-                params = {
-                    "limit": min(limit, 100),  # Cap at 100 for performance
-                    "offset": offset
+                # Get user details which includes their whistles
+                # Note: This assumes the API client has a method to get user details with whistles
+                # If not available, we might need to use searchAround with user's location
+                
+                # For now, we'll simulate getting user whistles using searchAround
+                # with a large radius around a default location
+                default_location = [-121.3269, 38.7531]  # Default to Rocklin, CA
+                
+                payload = {
+                    "location": default_location,
+                    "radius": 100.0,  # Large radius to capture user's whistles
+                    "limit": 1000,
+                    "keyword": "",
+                    "visible": True
                 }
                 
-                # Build search query similar to searchAround functionality
-                search_query = {}
+                result = await api_client.request(
+                    method="POST",
+                    endpoint="/searchAround", 
+                    data=payload
+                )
                 
-                if category:
-                    search_query["category"] = category
-                if sub_category:
-                    search_query["subCategory"] = sub_category
-                if keyword:
-                    search_query["keyword"] = keyword
+                # Extract whistles from search results
+                all_whistles = []
+                matching_whistles = result.get("matchingWhistles", [])
                 
-                # Add filters based on boolean flags
-                if active_only is True:
-                    search_query["active"] = True
-                elif active_only is False:
-                    search_query["active"] = False
+                for whistle_data in matching_whistles:
+                    whistle = whistle_data.get("item", whistle_data)
                     
-                if provider_only is not None:
-                    search_query["provider"] = provider_only
+                    # Apply active filter if requested
+                    if active_only and not whistle.get("active", True):
+                        continue
                     
-                if public_only is not None:
-                    search_query["public"] = public_only
-                
-                # Add additional filters if provided
-                if filters:
-                    search_query.update(filters)
-                
-                # If location and radius provided, use searchAround-style endpoint
-                if location and radius:
-                    payload = {
-                        "location": location,
-                        "radius": radius,
-                        "limit": params["limit"],
-                        "keyword": keyword or "",
-                        "category": category,
-                        "subCategory": sub_category,
-                        "provider": provider_only,
-                        "visible": True
+                    # Format whistle following whistletools.py pattern
+                    formatted_whistle = {
+                        "id": whistle.get("_id") or whistle.get("id"),
+                        "description": whistle.get("description", ""),
+                        "tags": whistle.get("tags", []),
+                        "alertRadius": whistle.get("alertRadius", 2),
+                        "expiry": whistle.get("expiry", "never"),
+                        "provider": whistle.get("provider", False),
+                        "active": whistle.get("active", True),
                     }
-                    
-                    result = await api_client.request(
-                        method="POST",
-                        endpoint="/searchAround",
-                        data=payload
-                    )
-                    
-                    # Extract whistles from search results
-                    whistles = []
-                    matching_whistles = result.get("matchingWhistles", [])
-                    
-                    # Skip offset number of results
-                    paginated_whistles = matching_whistles[offset:offset + limit]
-                    
-                    for whistle_data in paginated_whistles:
-                        if "item" in whistle_data:
-                            whistles.append(whistle_data["item"])
-                        else:
-                            whistles.append(whistle_data)
-                    
-                    response_data = {
-                        "whistles": whistles,
-                        "total_count": len(matching_whistles),
-                        "limit": limit,
-                        "offset": offset,
-                        "has_more": len(matching_whistles) > offset + limit,
-                        "search_criteria": {
-                            "location": location,
-                            "radius": radius,
-                            "category": category,
-                            "keyword": keyword
-                        }
-                    }
-                    
-                else:
-                    # For user's own whistles, we'd typically get them from user profile
-                    # Since we don't have a dedicated endpoint, simulate with searchAround
-                    # using a very small radius around user's location or default location
-                    default_location = location or [-121.3269, 38.7531]  # Default to Rocklin, CA
-                    default_radius = radius or 50.0  # Large radius to capture user's whistles
-                    
-                    payload = {
-                        "location": default_location,
-                        "radius": default_radius,
-                        "limit": 1000,  # Get more results for filtering
-                        "keyword": keyword or "",
-                        "category": category,
-                        "subCategory": sub_category,
-                        "provider": provider_only,
-                        "visible": True
-                    }
-                    
-                    result = await api_client.request(
-                        method="POST",
-                        endpoint="/searchAround",
-                        data=payload
-                    )
-                    
-                    # Filter and paginate results
-                    all_whistles = []
-                    matching_whistles = result.get("matchingWhistles", [])
-                    
-                    for whistle_data in matching_whistles:
-                        whistle = whistle_data.get("item", whistle_data)
-                        
-                        # Apply additional filters
-                        if active_only is not None and whistle.get("active") != active_only:
-                            continue
-                        if public_only is not None and whistle.get("public") != public_only:
-                            continue
-                            
-                        all_whistles.append(whistle)
-                    
-                    # Apply pagination
-                    paginated_whistles = all_whistles[offset:offset + limit]
-                    
-                    response_data = {
-                        "whistles": paginated_whistles,
-                        "total_count": len(all_whistles),
-                        "limit": limit,
-                        "offset": offset,
-                        "has_more": len(all_whistles) > offset + limit,
-                        "filters_applied": {
-                            "category": category,
-                            "sub_category": sub_category,
-                            "active_only": active_only,
-                            "provider_only": provider_only,
-                            "public_only": public_only,
-                            "keyword": keyword
-                        }
-                    }
+                    all_whistles.append(formatted_whistle)
                 
                 logger.info(
-                    "Whistles listed successfully", 
-                    count=len(response_data["whistles"]),
-                    total=response_data["total_count"],
-                    filters=response_data.get("filters_applied", {})
+                    "Whistles listed successfully",
+                    total_count=len(all_whistles),
+                    active_only=active_only
                 )
                 
                 return {
-                    "success": True,
-                    "data": response_data
+                    "status": "success",
+                    "whistles": all_whistles
                 }
                 
             except Exception as e:
@@ -514,13 +372,7 @@ class WhistleAgent:
                 logger.error("Whistle listing failed", error=error_msg)
                 
                 return {
-                    "success": False,
-                    "error": f"Error listing whistles: {error_msg}",
-                    "data": {
-                        "whistles": [],
-                        "total_count": 0,
-                        "limit": limit,
-                        "offset": offset,
-                        "has_more": False
-                    }
+                    "status": "error",
+                    "message": f"Error listing whistles: {error_msg}",
+                    "whistles": []
                 }
