@@ -2,202 +2,206 @@ from fastmcp import FastMCP
 from typing import Dict, Any
 import structlog
 from utils.http_client import api_client
-from models.user_model import UserSettingsResponse
 
 logger = structlog.get_logger()
 
 
 class UserAgent:
     def __init__(self, mcp: FastMCP):
-        self.mcp = mcp
-        self.register_tools()
-
-    def register_tools(self):
         @self.mcp.tool()
         async def toggle_visibility(auth_token: str, visible: str) -> Dict[str, Any]:
             """
             Toggle user visibility status
 
             Args:
-                auth_token: User authentication token from sign_in
+                auth_token: User authentication token from sign_in or verify_otp
                 visible: Whether the user should be visible ("true") or hidden ("false")
-
-            Returns:
-                A dictionary containing the operation result
             """
             try:
-                # Validate input parameters
+                # Validate auth_token
                 if not auth_token or not isinstance(auth_token, str):
-                    raise ValueError("auth_token must be a non-empty string")
+                    raise ValueError(
+                        "Invalid auth_token. Must be a non-empty string.")
 
+                # Validate visible parameter
                 if visible not in ["true", "false"]:
                     raise ValueError(
-                        "visible must be either 'true' or 'false'")
+                        "visible must be either 'true' or 'false'.")
 
-                # Prepare request payload - matches the API client pattern
                 payload = {"visible": visible}
+                print("toggle_visibility payload:", payload)  # debug log
 
-                # Make API request to PUT /user endpoint
                 result = await api_client.request(
                     method="PUT",
                     endpoint="/user",
                     data=payload,
-                    # Direct token format from API client
                     headers={"Authorization": auth_token}
                 )
 
-                response = UserSettingsResponse(
-                    success=True,
-                    message=f"User visibility set to {visible}"
-                )
+                logger.info("Visibility toggle successful", visible=visible)
 
-                logger.info(
-                    "User visibility toggled successfully",
-                    visible=visible,
-                    operation="toggle_visibility"
-                )
-
-                return response.model_dump()
-
-            except ValueError as ve:
-                logger.error("Invalid input parameters", error=str(ve))
-                error_response = UserSettingsResponse(
-                    success=False,
-                    message="Invalid input parameters",
-                    error=str(ve)
-                )
-                return error_response.model_dump()
+                return {
+                    "success": True,
+                    "message": f"User visibility set to {visible}",
+                    "data": result
+                }
 
             except Exception as e:
-                logger.error("Visibility toggle failed", error=str(e))
-                error_response = UserSettingsResponse(
-                    success=False,
-                    message="Failed to toggle user visibility",
-                    error=f"Unexpected error: {str(e)}"
-                )
-                return error_response.model_dump()
+                logger.error("Visibility toggle failed",
+                             error=str(e), visible=visible)
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "payload": locals().get("payload")
+                }
 
         @self.mcp.tool()
-        async def toggle_live_tracking(auth_token: str, tracking: str) -> Dict[str, Any]:
+        async def get_user_profile(auth_token: str) -> Dict[str, Any]:
             """
-            Toggle live tracking for a user
+            Get user profile details and whistles
 
             Args:
-                auth_token: User authentication token from sign_in
-                tracking: Whether to enable ("true") or disable ("false") live tracking
-
-            Returns:
-                A dictionary containing the operation result
+                auth_token: User authentication token from sign_in or verify_otp
             """
             try:
-                # Validate input parameters
+                # Validate auth_token
                 if not auth_token or not isinstance(auth_token, str):
-                    raise ValueError("auth_token must be a non-empty string")
-
-                if tracking not in ["true", "false"]:
                     raise ValueError(
-                        "tracking must be either 'true' or 'false'")
+                        "Invalid auth_token. Must be a non-empty string.")
 
-                # Prepare request payload - following the same pattern as toggle_visibility
-                payload = {"tracking": tracking}
+                print("get_user_profile called")  # debug log
 
-                # Make API request to PUT /user endpoint
                 result = await api_client.request(
-                    method="PUT",
+                    method="GET",
                     endpoint="/user",
-                    data=payload,
                     headers={"Authorization": auth_token}
                 )
 
-                response = UserSettingsResponse(
-                    success=True,
-                    message=f"Live tracking {'enabled' if tracking == 'true' else 'disabled'}"
-                )
+                # Process the response similar to get_user_details
+                if "user" in result:
+                    user_data = result["user"]
 
-                logger.info(
-                    "Live tracking toggled successfully",
-                    tracking=tracking,
-                    operation="toggle_live_tracking"
-                )
+                    # Transform Whistles data if present
+                    if "Whistles" in user_data:
+                        for whistle in user_data["Whistles"]:
+                            if "_id" in whistle:
+                                whistle["id"] = whistle.pop("_id")
+                            whistle["expiry"] = whistle.get(
+                                "expiry") or "never"
+                        user_data["whistles"] = user_data.pop("Whistles")
 
-                return response.model_dump()
+                    # debug log
+                    print(f"get_user_profile response: {user_data}")
 
-            except ValueError as ve:
-                logger.error("Invalid input parameters", error=str(ve))
-                error_response = UserSettingsResponse(
-                    success=False,
-                    message="Invalid input parameters",
-                    error=str(ve)
-                )
-                return error_response.model_dump()
+                    logger.info("User profile retrieved successfully",
+                                user_id=user_data.get("_id"))
 
-            except Exception as e:
-                logger.error("Live tracking toggle failed", error=str(e))
-                error_response = UserSettingsResponse(
-                    success=False,
-                    message="Failed to toggle live tracking",
-                    error=f"Unexpected error: {str(e)}"
-                )
-                return error_response.model_dump()
-
-        @self.mcp.tool()
-        async def toggle_whistle_sound(auth_token: str, enable: str) -> Dict[str, Any]:
-            """
-            Toggle whistle sound notifications for a user
-
-            Args:
-                auth_token: User authentication token from sign_in
-                enable: Whether to enable ("true") or disable ("false") whistle sound notifications
-
-            Returns:
-                A dictionary containing the operation result
-            """
-            try:
-                # Validate input parameters
-                if not auth_token or not isinstance(auth_token, str):
-                    raise ValueError("auth_token must be a non-empty string")
-
-                if enable not in ["true", "false"]:
-                    raise ValueError("enable must be either 'true' or 'false'")
-
-                # Prepare request payload - following the same pattern as other toggle functions
-                payload = {"enable": enable}
-
-                # Make API request to PUT /user endpoint
-                result = await api_client.request(
-                    method="PUT",
-                    endpoint="/user",
-                    data=payload,
-                    headers={"Authorization": auth_token}
-                )
-
-                response = UserSettingsResponse(
-                    success=True,
-                    message=f"Whistle sound notifications {'enabled' if enable == 'true' else 'disabled'}"
-                )
-
-                logger.info(
-                    "Whistle sound toggled successfully",
-                    enable=enable,
-                    operation="toggle_whistle_sound"
-                )
-
-                return response.model_dump()
-
-            except ValueError as ve:
-                logger.error("Invalid input parameters", error=str(ve))
-                error_response = UserSettingsResponse(
-                    success=False,
-                    message="Invalid input parameters",
-                    error=str(ve)
-                )
-                return error_response.model_dump()
+                    return {
+                        "success": True,
+                        "data": user_data
+                    }
+                else:
+                    raise Exception("User not found")
 
             except Exception as e:
-                logger.error("Whistle sound toggle failed", error=str(e))
-                error_response = UserSettingsResponse(
-                    success=False,
-                    message="Failed to toggle whistle sound",
-                    error=f"Unexpected error: {str(e)}"
-                )
-                return error_response.model_dump()
+                logger.error("User profile retrieval failed", error=str(e))
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "payload": locals().get("payload")
+                }
+
+        # @self.mcp.tool()
+        # async def toggle_live_tracking(auth_token: str, tracking: str) -> Dict[str, Any]:
+        #     """
+        #     Toggle live tracking for a user
+
+        #     Args:
+        #         auth_token: User authentication token from sign_in or verify_otp
+        #         tracking: Whether to enable ("true") or disable ("false") live tracking
+        #     """
+        #     try:
+        #         # Validate auth_token
+        #         if not auth_token or not isinstance(auth_token, str):
+        #             raise ValueError(
+        #                 "Invalid auth_token. Must be a non-empty string.")
+
+        #         # Validate tracking parameter
+        #         if tracking not in ["true", "false"]:
+        #             raise ValueError(
+        #                 "tracking must be either 'true' or 'false'.")
+
+        #         payload = {"tracking": tracking}
+        #         print("toggle_live_tracking payload:", payload)  # debug log
+
+        #         result = await api_client.request(
+        #             method="PUT",
+        #             endpoint="/user",
+        #             data=payload,
+        #             headers={"Authorization": auth_token}
+        #         )
+
+        #         logger.info("Live tracking toggle successful",
+        #                     tracking=tracking)
+
+        #         return {
+        #             "success": True,
+        #             "message": f"Live tracking {'enabled' if tracking == 'true' else 'disabled'}",
+        #             "data": result
+        #         }
+
+        #     except Exception as e:
+        #         logger.error("Live tracking toggle failed",
+        #                      error=str(e), tracking=tracking)
+        #         return {
+        #             "success": False,
+        #             "error": str(e),
+        #             "payload": locals().get("payload")
+        #         }
+
+        # @self.mcp.tool()
+        # async def toggle_whistle_sound(auth_token: str, enable: str) -> Dict[str, Any]:
+        #     """
+        #     Toggle whistle sound notifications for a user
+
+        #     Args:
+        #         auth_token: User authentication token from sign_in or verify_otp
+        #         enable: Whether to enable ("true") or disable ("false") whistle sound notifications
+        #     """
+        #     try:
+        #         # Validate auth_token
+        #         if not auth_token or not isinstance(auth_token, str):
+        #             raise ValueError(
+        #                 "Invalid auth_token. Must be a non-empty string.")
+
+        #         # Validate enable parameter
+        #         if enable not in ["true", "false"]:
+        #             raise ValueError(
+        #                 "enable must be either 'true' or 'false'.")
+
+        #         payload = {"enable": enable}
+        #         print("toggle_whistle_sound payload:", payload)  # debug log
+
+        #         result = await api_client.request(
+        #             method="PUT",
+        #             endpoint="/user",
+        #             data=payload,
+        #             headers={"Authorization": auth_token}
+        #         )
+
+        #         logger.info("Whistle sound toggle successful", enable=enable)
+
+        #         return {
+        #             "success": True,
+        #             "message": f"Whistle sound notifications {'enabled' if enable == 'true' else 'disabled'}",
+        #             "data": result
+        #         }
+
+        #     except Exception as e:
+        #         logger.error("Whistle sound toggle failed",
+        #                      error=str(e), enable=enable)
+        #         return {
+        #             "success": False,
+        #             "error": str(e),
+        #             "payload": locals().get("payload")
+        #         }
