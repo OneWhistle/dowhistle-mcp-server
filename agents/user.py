@@ -1,3 +1,4 @@
+# agents/user.py
 from fastmcp import FastMCP
 from typing import Dict, Any
 import structlog
@@ -12,104 +13,104 @@ class UserAgent:
     
     def register_tools(self):
         @self.mcp.tool()
-        async def toggle_live_tracking(user_id: str, enabled: bool) -> Dict[str, Any]:
+        async def toggle_visibility(access_token: str, visible: str) -> Dict[str, Any]:
             """
-            Toggle live tracking for a user
-            
+            Toggle user visibility status
+
             Args:
-                user_id: User ID
-                enabled: Whether to enable live tracking
+                access_token: User authentication token from sign_in or verify_otp
+                visible: Whether the user should be visible ("true") or hidden ("false")
             """
             try:
-                payload = {"live_tracking_enabled": enabled}
-                
+                # Validate access_token
+                if not access_token or not isinstance(access_token, str):
+                    raise ValueError(
+                        "Authentication needed — sign in first.")
+
+                # Validate visible parameter
+                if visible not in ["true", "false"]:
+                    raise ValueError(
+                        "visible must be either 'true' or 'false'.")
+
+                payload = {"visible": visible}
+                print("toggle_visibility payload:", payload)  # debug log
+
                 result = await api_client.request(
                     method="PUT",
-                    endpoint=f"/users/{user_id}/settings",
-                    data=payload
+                    endpoint="/user",
+                    data=payload,
+                    headers={"Authorization": access_token}
                 )
-                
-                logger.info(
-                    "Live tracking toggled", 
-                    user_id=user_id, 
-                    enabled=enabled
-                )
-                
+
+                logger.info("Visibility toggle successful", visible=visible)
+
                 return {
                     "success": True,
-                    "data": result,
-                    "message": f"Live tracking {'enabled' if enabled else 'disabled'}"
+                    "message": f"User visibility set to {visible}",
+                    "data": result
                 }
-                
+
             except Exception as e:
-                logger.error("Live tracking toggle failed", error=str(e), user_id=user_id)
+                logger.error("Visibility toggle failed",
+                             error=str(e), visible=visible)
                 return {
                     "success": False,
-                    "error": str(e)
+                    "error": str(e),
+                    "payload": locals().get("payload")
                 }
-        
+
         @self.mcp.tool()
-        async def toggle_visibility(user_id: str, visible: bool) -> Dict[str, Any]:
+        async def get_user_profile(access_token: str) -> Dict[str, Any]:
             """
-            Toggle user visibility
-            
+            Get user profile details and whistles
+
             Args:
-                user_id: User ID
-                visible: Whether user should be visible
+                access_token: User authentication token from sign_in or verify_otp
             """
             try:
-                payload = {"is_visible": visible}
-                
+                # Validate access_token
+                if not access_token or not isinstance(access_token, str):
+                    raise ValueError(
+                        "Authentication needed — sign in first.")
+
+                print("get_user_profile called")  # debug log
+
                 result = await api_client.request(
-                    method="PUT",
-                    endpoint=f"/users/{user_id}/settings",
-                    data=payload
+                    method="GET",
+                    endpoint="/user",
+                    headers={"Authorization": access_token}
                 )
-                
-                logger.info("Visibility toggled", user_id=user_id, visible=visible)
-                
-                return {
-                    "success": True,
-                    "data": result,
-                    "message": f"User {'visible' if visible else 'hidden'}"
-                }
-                
+
+                # Process the response similar to get_user_details
+                if "user" in result:
+                    user_data = result["user"]
+
+                    # Transform Whistles data if present
+                    if "Whistles" in user_data:
+                        for whistle in user_data["Whistles"]:
+                            if "_id" in whistle:
+                                whistle["id"] = whistle.pop("_id")
+                            whistle["expiry"] = whistle.get(
+                                "expiry") or "never"
+                        user_data["whistles"] = user_data.pop("Whistles")
+
+                    # debug log
+                    print(f"get_user_profile response: {user_data}")
+
+                    logger.info("User profile retrieved successfully",
+                                user_id=user_data.get("_id"))
+
+                    return {
+                        "success": True,
+                        "data": user_data
+                    }
+                else:
+                    raise Exception("User not found")
+
             except Exception as e:
-                logger.error("Visibility toggle failed", error=str(e), user_id=user_id)
+                logger.error("User profile retrieval failed", error=str(e))
                 return {
                     "success": False,
-                    "error": str(e)
-                }
-        
-        @self.mcp.tool()
-        async def toggle_whistle_sound(user_id: str, enabled: bool) -> Dict[str, Any]:
-            """
-            Toggle whistle sound notifications
-            
-            Args:
-                user_id: User ID
-                enabled: Whether to enable whistle sounds
-            """
-            try:
-                payload = {"whistle_sound_enabled": enabled}
-                
-                result = await api_client.request(
-                    method="PUT",
-                    endpoint=f"/users/{user_id}/settings",
-                    data=payload
-                )
-                
-                logger.info("Whistle sound toggled", user_id=user_id, enabled=enabled)
-                
-                return {
-                    "success": True,
-                    "data": result,
-                    "message": f"Whistle sound {'enabled' if enabled else 'disabled'}"
-                }
-                
-            except Exception as e:
-                logger.error("Whistle sound toggle failed", error=str(e), user_id=user_id)
-                return {
-                    "success": False,
-                    "error": str(e)
+                    "error": str(e),
+                    "payload": locals().get("payload")
                 }
