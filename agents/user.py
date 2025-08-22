@@ -1,8 +1,9 @@
 # agents/user.py
 from fastmcp import FastMCP
-from typing import Dict, Any
+from typing import Dict, Any, Annotated, Literal
 import structlog
 from utils.http_client import api_client
+from pydantic import Field
 
 logger = structlog.get_logger()
 
@@ -13,26 +14,37 @@ class UserAgent:
     
     def register_tools(self):
         @self.mcp.tool()
-        async def toggle_visibility(access_token: str, visible: str) -> Dict[str, Any]:
+        async def toggle_visibility(
+            access_token: Annotated[
+                str, Field(description="User authentication token from sign_in or verify_otp")
+            ],
+            visible: Annotated[
+                Literal["true", "false"],
+                Field(description="Whether the user should be visible ('true') or hidden ('false')")
+            ]
+        ) -> Dict[str, Any]:
             """
             Toggle user visibility status
 
             Args:
                 access_token: User authentication token from sign_in or verify_otp
                 visible: Whether the user should be visible ("true") or hidden ("false")
+            
+            Returns:
+                Dictionary with success status and result data
             """
             try:
                 # Validate access_token
                 if not access_token or not isinstance(access_token, str):
-                    raise ValueError(
-                        "Authentication needed — sign in first.")
+                    return {
+                        "success": False,
+                        "error": "Authentication needed — sign in first."
+                    }
 
-                # Validate visible parameter
-                if visible not in ["true", "false"]:
-                    raise ValueError(
-                        "visible must be either 'true' or 'false'.")
-
-                payload = {"visible": visible}
+                # Convert to boolean for API call
+                visible_bool = visible == "true"
+                
+                payload = {"visible": visible_bool}
                 print("toggle_visibility payload:", payload)  # debug log
 
                 result = await api_client.request(
@@ -56,22 +68,31 @@ class UserAgent:
                 return {
                     "success": False,
                     "error": str(e),
-                    "payload": locals().get("payload")
+                    "payload": locals().get("payload", {})
                 }
 
         @self.mcp.tool()
-        async def get_user_profile(access_token: str) -> Dict[str, Any]:
+        async def get_user_profile(
+            access_token: Annotated[
+                str, Field(description="User authentication token from sign_in or verify_otp")
+            ]
+        ) -> Dict[str, Any]:
             """
             Get user profile details and whistles
 
             Args:
                 access_token: User authentication token from sign_in or verify_otp
+                
+            Returns:
+                Dictionary with success status and user profile data
             """
             try:
                 # Validate access_token
                 if not access_token or not isinstance(access_token, str):
-                    raise ValueError(
-                        "Authentication needed — sign in first.")
+                    return {
+                        "success": False,
+                        "error": "Authentication needed — sign in first."
+                    }
 
                 print("get_user_profile called")  # debug log
 
@@ -90,9 +111,12 @@ class UserAgent:
                         for whistle in user_data["Whistles"]:
                             if "_id" in whistle:
                                 whistle["id"] = whistle.pop("_id")
-                            whistle["expiry"] = whistle.get(
-                                "expiry") or "never"
+                            whistle["expiry"] = whistle.get("expiry") or "never"
                         user_data["whistles"] = user_data.pop("Whistles")
+
+                    # Transform other _id fields to id
+                    if "_id" in user_data:
+                        user_data["id"] = user_data.get("_id")
 
                     # debug log
                     print(f"get_user_profile response: {user_data}")
@@ -105,12 +129,14 @@ class UserAgent:
                         "data": user_data
                     }
                 else:
-                    raise Exception("User not found")
+                    return {
+                        "success": False,
+                        "error": "User not found in response"
+                    }
 
             except Exception as e:
                 logger.error("User profile retrieval failed", error=str(e))
                 return {
                     "success": False,
-                    "error": str(e),
-                    "payload": locals().get("payload")
+                    "error": str(e)
                 }
