@@ -7,6 +7,6 @@ def compute_feedback_rating(item: dict) -> float:
         return 2.5  # neutral rating if no feedback
 
     feedback_score = (likes - dislikes) / total  # -1.0 to +1.0
-    rating = (feedback_score + 1) * 2.5          # normalize to 0–5
+    rating = (feedback_score + 1) * 2.5  # normalize to 0–5
 
     return round(rating, 2)

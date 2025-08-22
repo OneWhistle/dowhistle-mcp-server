@@ -18,12 +18,12 @@ mcp-server/
 │   ├── __init__.py
 │   ├── test_agents.py          # Agent tests
 │   └── conftest.py             # Test configuration
-├── main.py                     # Entry point
-├── requirements.txt            # Dependencies
+├── app.py                      # Entry point
+├── pyproject.toml              # Dependencies
 ├── Dockerfile                  # Container configuration
 ├── docker-compose.yml          # Multi-container setup
-├── .env.example               # Environment variables template
-└── README.md                  # Documentation
+├── .env.example                # Environment variables template
+└── README.md                   # Documentation
 ```
 
 ## Agents and Tools
@@ -67,27 +67,32 @@ mcp-server/
 ```bash
 git clone https://github.com/OneWhistle/dowhistle-mcp-server
 cd dowhistle-mcp-server
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
+
+uv sync
+
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
 ```
 
-2. **Configuration**:
+1. **Configuration**:
 ```bash
-cp .env.example .env
+cp env.example .env
 # Edit .env with your settings
 ```
 
-3. **Run the server**:
+1. **Run the server**:
 ```bash
-python main.py
+uvicorn app:app --host 0.0.0.0 --port 8000 
 ```
 
 ### Docker Deployment
 
 1. **Build and run**:
 ```bash
-docker-compose up --build
+docker compose up -d --build 
+(or)
+
+docker-compose up --build 
 ```
 
 2. **Production deployment**:
@@ -102,7 +107,7 @@ All configuration is managed through environment variables:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `EXPRESS_API_BASE_URL` | Your Express API base URL | `https://dowhistle.herokuapp.com/v3` |
-| `MCP_SERVER_PORT` | MCP server port | `8000` |
+| `PORT` | MCP server port | `8000` |
 | `HEALTH_PORT` | Health server port | `8080` |
 | `API_KEY` | API authentication key | `None` |
 | `LOG_LEVEL` | Logging level | `INFO` |
