@@ -33,7 +33,7 @@ logger = structlog.get_logger()
 def create_app():
     """Create and configure production-grade MCP server"""
     
-    mcp = FastMCP("Whistle MCP Server",stateless_http=True)
+    mcp = FastMCP("Whistle MCP Server")
     
     # Add middleware in correct order (first added = outermost layer)
     mcp.add_middleware(LoggingMiddleware())    # Log everything first
@@ -66,7 +66,7 @@ def create_app():
         })
     
     # Get the ASGI app
-    app = mcp.http_app()
+    app = mcp.http_app(stateless_http=True)
     
     # Add CORS middleware for development
     if settings.ENVIRONMENT == "development":
