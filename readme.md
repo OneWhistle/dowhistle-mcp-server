@@ -109,7 +109,7 @@ All configuration is managed through environment variables:
 | `EXPRESS_API_BASE_URL` | Your Express API base URL | `https://dowhistle.herokuapp.com/v3` |
 | `PORT` | MCP server port | `8000` |
 | `HEALTH_PORT` | Health server port | `8080` |
-| `API_KEY` | API authentication key | `None` |
+| `OPENAI_API_KEY` | OPENAI_API_KEY authentication key | `None` |
 | `LOG_LEVEL` | Logging level | `INFO` |
 | `MAX_RETRIES` | API request retry count | `3` |
 | `RETRY_DELAY` | Retry delay in seconds | `1.0` |
