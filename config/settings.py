@@ -26,7 +26,7 @@ class Settings(BaseSettings):
 
     # Authentication
     API_KEY: Optional[str] = Field(default=None)
-
+    OPENAI_API_KEY: str = Field()
     # Logging
     LOG_LEVEL: str = Field(default="INFO")
 
