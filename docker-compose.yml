@@ -13,7 +13,7 @@ services:
             - ENVIRONMENT=production
             - PORT=8000
             - EXPRESS_API_BASE_URL=${EXPRESS_API_BASE_URL:-https://dowhistle.herokuapp.com/v3}
-            - API_KEY=${API_KEY:-}
+            - OPENAI_API_KEY=${OPENAI_API_KEY:-}
             - LOG_LEVEL=INFO
             - RATE_LIMIT_PER_MINUTE=120
             - MAX_RETRIES=5
