@@ -45,7 +45,7 @@ class SearchAgent:
                     default=10,
                 ),
             ],
-        ) -> Dict[str, Any]:
+        ) -> SearchNearMeResponse:
             """
             Search for providers near a specific location.
 
@@ -62,6 +62,7 @@ class SearchAgent:
             try:
                 # Ensure the keyword is a single value
                 keyword = self._sanitize_keyword(keyword)
+                print("keyword", keyword)
 
                 payload = {
                     "keyword": keyword
@@ -86,6 +87,7 @@ class SearchAgent:
                 )
 
                 providers = self._normalize_providers(result)
+                print("providers", providers)
 
                 response = SearchNearMeResponse(
                     providers=providers,
