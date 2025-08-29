@@ -36,7 +36,7 @@ class AuthMiddleware(Middleware):
             normalized_headers = {str(k).lower(): v for k, v in headers.items()}
             auth_header = normalized_headers.get('authorization')
             if isinstance(auth_header, str) and auth_header.lower().startswith('bearer '):
-                access_token = auth_header[7:].strip()
+                access_token = auth_header
             # Optional user id header
             user_id = normalized_headers.get('x-user-id') or None
         except Exception:
