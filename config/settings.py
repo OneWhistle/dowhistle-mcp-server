@@ -19,8 +19,7 @@ class Settings(BaseSettings):
 
     # API Configuration
     EXPRESS_API_BASE_URL: str = Field(default="https://dowhistle.herokuapp.com/v3")
-    MCP_SERVER_PORT: int = Field(default=8000)
-
+    
     # New field for PORT (from environment)
     PORT: Optional[int] = Field(default=None)
 
@@ -87,7 +86,7 @@ class Settings(BaseSettings):
         return {
             "environment": self.ENVIRONMENT,
             "transport_mode": self.TRANSPORT_MODE,
-            "mcp_port": self.MCP_SERVER_PORT,
+            "mcp_port": self.PORT,
             "api_base_url": self.EXPRESS_API_BASE_URL,
             "log_level": self.LOG_LEVEL,
         }
@@ -97,7 +96,7 @@ class Settings(BaseSettings):
         print("🚀 Server Configuration:")
         print(f"   Environment: {self.ENVIRONMENT}")
         print(f"   Transport: {self.TRANSPORT_MODE}")
-        print(f"   MCP Port: {self.MCP_SERVER_PORT}")
+        print(f"   MCP Port: {self.PORT}")
         print(f"   API Base URL: {self.EXPRESS_API_BASE_URL}")
         print(f"   Log Level: {self.LOG_LEVEL}")
 
