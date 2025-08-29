@@ -129,13 +129,12 @@ class AuthAgent:
 
                 # Validate response structure and create proper response model
                 try:
-                    validated_response = SignInResponse(**result)
+                    validated_response = SignInResponse.model_validate(result)
                     logger.info(
                         "Sign in successful",
                         phone=phone,
                         country_code=country_code,
-                        user_id=validated_response.user._id
-                        or validated_response.user.id,
+                        user_id=validated_response.user.mongo_id or validated_response.user.id,
                     )
 
                     return SignInResponse(
@@ -175,7 +174,7 @@ class AuthAgent:
         # -------------------------
         @self.mcp.tool()
         async def verify_otp(
-            otp_code: str, user_id: str
+            otp_code: str, user_id: str,
         ) -> Union[VerifyOtpResponse, VerifyOtpErrorResponse]:
             """
             Verify OTP code for user authentication.
@@ -208,6 +207,8 @@ class AuthAgent:
                 # Convert to dict for API call
                 payload = verify_otp_request.model_dump()
 
+                print(" verify_otp payload", payload)  # debug log
+
                 # Make API request
                 result = await api_client.request(
                     method="POST", endpoint="/twilio/verify-otp", data=payload
@@ -215,19 +216,15 @@ class AuthAgent:
 
                 # Validate response structure and create proper response model
                 try:
-                    validated_response = VerifyOtpResponse(**result)
+                    validated_response = VerifyOtpResponse.model_validate(result)
+
                     logger.info(
                         "OTP verification successful",
                         user_id=user_id,
                         user_name=validated_response.user.name,
                     )
 
-                    return VerifyOtpResponse(
-                        message=validated_response.message,
-                        user=validated_response.user,
-                        token=validated_response.token,
-                        uploadToken=validated_response.uploadToken,
-                    )
+                    return validated_response
 
                 except Exception as validation_error:
                     logger.warning(
@@ -296,14 +293,14 @@ class AuthAgent:
 
                 # Validate response structure and create proper response model
                 try:
-                    validated_response = ResendOtpResponse(**result)
+                    validated_response = ResendOtpResponse.model_validate(result)
                     logger.info(
                         "OTP resent successfully",
                         user_id=user_id,
                         message=validated_response.message,
                     )
 
-                    return ResendOtpResponse(message=validated_response.message)
+                    return validated_response
 
                 except Exception as validation_error:
                     logger.warning(
