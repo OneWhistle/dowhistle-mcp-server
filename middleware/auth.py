@@ -2,8 +2,11 @@ import structlog
 from typing import Dict, Any
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 from fastmcp.exceptions import ToolError
+from config.strings import PROTECTED_TOOL_ERRORS_MESSAGE
 
 logger = structlog.get_logger()
+
+
 
 class AuthMiddleware(Middleware):
     """Authorization middleware for protected tools"""
@@ -49,10 +52,10 @@ class AuthMiddleware(Middleware):
             if isinstance(arg_token, str) and arg_token.strip():
                 access_token = arg_token.strip()
 
-        # Enforce auth presence
-        if not access_token:
-            logger.warning(f"Protected tool accessed without valid token: {tool_name}")
-            raise ToolError("Authentication needed — sign in first.")
+        # Enforce auth presence and validate token format
+        if not access_token or not access_token.lower().startswith('bearer '):
+            logger.warning(f"Protected tool accessed without valid token: {tool_name} (token: {access_token})")
+            raise ToolError(PROTECTED_TOOL_ERRORS_MESSAGE)
 
         # Inject discovered values into arguments so downstream tools can rely on them
         # (Only set if not already present to avoid overwriting explicit args)
