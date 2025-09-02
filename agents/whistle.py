@@ -370,13 +370,6 @@ class WhistleAgent:
         self.validator = WhistleValidator()
         self.register_tools()
     
-    def auth_access(self, access_token: str) -> bool:
-        """Validate access token"""
-        if not access_token or not isinstance(access_token, str):
-            logger.error("Authentication needed — sign in first.")
-            return False
-        return True
-    
     def register_tools(self):
         @self.mcp.tool()
         async def create_whistle(
@@ -403,9 +396,9 @@ class WhistleAgent:
                 )
             ],
             access_token: Annotated[
-                str, 
-                Field(description="User authentication token")
-            ],
+                str,
+                Field(description="User authentication token", default="")
+            ] = "",
             confidence_threshold: Annotated[
                 float,
                 Field(
@@ -434,13 +427,7 @@ class WhistleAgent:
             - clarification_needed: More information required
             - error: Creation failed
             """
-            try:
-                # Authenticate user
-                if not self.auth_access(access_token):
-                    return {
-                        "status": ProcessingStatus.ERROR.value,
-                        "message": "Authentication needed — sign in first."
-                    }
+            try:                
                 
                 # Extract attributes using OpenAI
                 extracted_data = await self.llm_extractor.extract_attributes(user_input)
@@ -544,7 +531,7 @@ class WhistleAgent:
                 else:
                     return {
                         "status": ProcessingStatus.ERROR.value,
-                        "message": f"Error creating whistle: {error_msg}"
+                        "message": "An unexpected error occurred while creating the whistle. Please try again later."
                     }
     
     
@@ -552,8 +539,8 @@ class WhistleAgent:
         @self.mcp.tool()
         async def list_whistles(
             access_token: Annotated[
-                str, Field(description="User authentication token")
-            ],
+                str, Field(description="User authentication token", default="")
+            ] = "",
             active_only: Annotated[
                 bool,
                 Field(
@@ -572,15 +559,8 @@ class WhistleAgent:
             Returns:
                 Dictionary with success status and list of whistles
             """
-            try:
-                # Check authentication
-                if not self.auth_access(access_token):
-                    return {
-                        "status": "error",
-                        "message": "Authentication needed — sign in first."
-                    }
-
-                # Fetch user details from the 'user' endpoint
+            try:            
+               # Fetch user details from the 'user' endpoint
                 result = await api_client.request(
                     method="GET",
                     endpoint="/user",
@@ -625,7 +605,7 @@ class WhistleAgent:
 
                 return {
                     "status": "error",
-                    "message": f"Error listing whistles: {error_msg}",
+                    "message": "An unexpected error occurred while creating the whistle. Please try again later.",
                     "whistles": []
                 }
 
