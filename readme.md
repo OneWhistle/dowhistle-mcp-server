@@ -1,5 +1,12 @@
 # DoWhistle MCP Server
 
+## Submission Details
+
+*   **Team Name**: DoWhistle
+*   **Team Members**: Raja Appachi , Nishanth M, Mithran Raja, Nitin Murali
+*   **Hackathon Theme**: Theme 2 - Agents and tools need a reliable interface layer—secure, permissioned, and observable—to interact with real-world APIs.
+
+
 ## Project Structure
 
 ```
@@ -41,17 +48,14 @@ mcp-server/
 
 ### 3. Whistle Agent (`agents/whistle.py`)
 - **Tools**:
-  - `create_whistle`: Create new whistle reports
-  - `update_whistle`: Update existing whistles
-  - `delete_whistle`: Delete whistles
+  - `create_whistle`: Create new whistle reports  
   - `list_whistles`: List whistles with pagination
 - **Purpose**: Complete whistle management
 
 ### 4. User Agent (`agents/user.py`)
-- **Tools**:
-  - `toggle_live_tracking`: Enable/disable live tracking
+- **Tools**:  
   - `toggle_visibility`: Control user visibility
-  - `toggle_whistle_sound`: Control sound notifications
+  
 - **Purpose**: User preference management
 
 ## Installation and Setup
@@ -108,7 +112,6 @@ All configuration is managed through environment variables:
 |----------|-------------|---------|
 | `EXPRESS_API_BASE_URL` | Your Express API base URL | `https://dowhistle.herokuapp.com/v3` |
 | `PORT` | MCP server port | `8000` |
-| `HEALTH_PORT` | Health server port | `8080` |
 | `OPENAI_API_KEY` | OPENAI_API_KEY authentication key | `None` |
 | `LOG_LEVEL` | Logging level | `INFO` |
 | `MAX_RETRIES` | API request retry count | `3` |
@@ -128,13 +131,16 @@ With more time, we would focus on:
 
 **Develop a dedicated web and mcp-client**: 
 
-    *   **dowhistle-mcp-gateway**: Containing the MCP Client and integration with OpenAI for agentic capabilities.
-        Repo: https://github.com/OneWhistle/dowhistle-mcp-gateway
-    *   **dowhistle-mcp-web**: Housing the ChatBot interface for user interaction.
-        Repo: https://github.com/OneWhistle/dowhistle-mcp-web
+- **DoWhistle-MCP-Gateway**: Containing the MCP Client and integration with OpenAI for agentic capabilities.
+
+Repo: [DoWhistle-MCP-Gateway](https://github.com/OneWhistle/dowhistle-mcp-gateway)
+
+- **DoWhistle-MCP-Web**: Housing the ChatBot interface for user interaction.
+
+Repo: [DoWhistle-MCP-Web](https://github.com/OneWhistle/dowhistle-mcp-web)
 
 ## Smithery Link for MCP Server
 
-👉 https://smithery.ai/server/@mr-nishanth/dowhistle-mcp-server
+👉 [Smithery dowhistle-mcp-server](https://smithery.ai/server/@mr-nishanth/dowhistle-mcp-server)
 
 
