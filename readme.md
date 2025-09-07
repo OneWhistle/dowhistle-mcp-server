@@ -123,7 +123,7 @@ All configuration is managed through environment variables:
 
 ## Demo Video
 
-[Link to your demo video on YouTube/other streaming service]
+https://youtu.be/D8iLXoZe_3o
 
 ## What We'd Do with More Time
 
