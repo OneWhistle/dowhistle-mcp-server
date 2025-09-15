@@ -11,7 +11,9 @@ from middleware.auth import AuthMiddleware
 from middleware.logging import LoggingMiddleware
 from middleware.rate_limit import RateLimitMiddleware
 from config.settings import settings
+from dotenv import load_dotenv
 
+load_dotenv()
 # Configure structured logging for production
 structlog.configure(
     processors=[
